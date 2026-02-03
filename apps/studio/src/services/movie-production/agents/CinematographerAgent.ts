@@ -136,7 +136,7 @@ class CameraMovementSkill implements Skill {
         {
           type: 'Crane/Overhead',
           purpose: 'Establish scope and provide visual metaphor',
-          examples: ['Rising crane for hope', 'God\\'s eye view for perspective'],
+          examples: ['Rising crane for hope', "God's eye view for perspective"],
         },
         {
           type: 'Handheld',
