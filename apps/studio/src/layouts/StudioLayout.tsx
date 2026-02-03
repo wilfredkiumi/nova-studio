@@ -69,6 +69,20 @@ const creativeDomains: {
     ]
   },
   {
+    id: 'music-video',
+    title: 'Music Video',
+    icon: Music,
+    color: 'fuchsia',
+    tools: [
+      { title: 'Video Sync', icon: Video, url: '/music-video/sync' },
+      { title: 'Beat Matching', icon: Music, url: '/music-video/beats' },
+      { title: 'Visual Effects', icon: Wand2, url: '/music-video/vfx' },
+      { title: 'Color Grading', icon: Palette, url: '/music-video/grading' },
+      { title: 'Performance Capture', icon: Camera, url: '/music-video/capture' },
+      { title: 'Editor', icon: Scissors, url: '/music-video/editor' },
+    ]
+  },
+  {
     id: 'animation',
     title: 'Animation',
     icon: Layers,

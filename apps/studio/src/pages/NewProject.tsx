@@ -394,6 +394,15 @@ const projectTypes: {
     tools: ['AI Director', 'Script Writer', 'Video Generation', 'Voice Synthesis'],
   },
   {
+    id: 'music-video',
+    title: 'Music Video',
+    description: 'Create captivating music videos with synchronized visuals and audio effects',
+    icon: Music,
+    color: 'fuchsia',
+    bgGradient: 'from-fuchsia-600/20 to-purple-600/20',
+    tools: ['Video Sync', 'Beat Matching', 'Visual Effects', 'Color Grading'],
+  },
+  {
     id: 'animation',
     title: 'Animation',
     description: 'Bring characters and stories to life with 2D and 3D animation tools',

@@ -46,6 +46,7 @@ import {
 const projectTypes: { id: string; label: string; icon: LucideIcon; color: string }[] = [
   { id: 'all', label: 'All Projects', icon: Grid3X3, color: 'zinc' },
   { id: 'film', label: 'Film & Video', icon: Clapperboard, color: 'violet' },
+  { id: 'music-video', label: 'Music Video', icon: Music, color: 'fuchsia' },
   { id: 'animation', label: 'Animation', icon: Layers, color: 'pink' },
   { id: 'games', label: 'Game Dev', icon: Gamepad2, color: 'emerald' },
   { id: 'music', label: 'Music', icon: Music, color: 'amber' },
