@@ -63,6 +63,27 @@ export {
   type GenerationOutput,
 } from './KieAiTool';
 
+// Prompt Converter — converts natural language to structured JSON prompts
+// for image/video/music/VFX models (Flux, Kling, Nano Banana, Higgsfield, etc.)
+export {
+  PromptConverter,
+  promptConverter,
+  type SupportedModel,
+  type ImageModel,
+  type VideoModel,
+  type MusicModel,
+  type KieImageModel,
+  type KieVideoModel,
+  type ReplicateImageModel,
+  type ReplicateVideoModel,
+  type HiggsfieldModel,
+  type ImagePromptSchema,
+  type VideoPromptSchema,
+  type MusicPromptSchema,
+  type VFXPromptSchema,
+  type ConversionResult,
+} from './PromptConverter';
+
 // Department Model Services (High-level Department APIs)
 export { 
   DepartmentModelService,

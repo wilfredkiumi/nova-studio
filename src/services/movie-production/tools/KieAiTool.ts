@@ -3,6 +3,7 @@
 // Unified access to AI models with credit-based pricing
 
 import { MovieTool, ToolResult, FilmDepartment } from '../types';
+import { promptConverter, type SupportedModel } from './PromptConverter';
 
 // ============================================================================
 // TYPES
@@ -92,13 +93,30 @@ export const KIE_AI_MODELS: Record<string, ModelConfig> = {
     capabilities: ['text-to-image', 'character-consistency', 'scene-generation'],
     averageTime: 18,
   },
+  // Nano Banana = Kie.ai branding for Google Gemini image models
   'nano-banana': {
     id: 'nano-banana',
-    name: 'Nano Banana',
-    description: 'Fast and precise AI image generation with realistic physics simulation',
+    name: 'Nano Banana (Gemini 2.5 Flash)',
+    description: 'Gemini 2.5 Flash Image — fast generation, image editing, up to 4K. Endpoint: /generate',
     department: ['production_design'],
-    capabilities: ['text-to-image', 'image-editing', 'physics-simulation'],
+    capabilities: ['text-to-image', 'image-editing', 'image-to-image'],
     averageTime: 12,
+  },
+  'nano-banana-2': {
+    id: 'nano-banana-2',
+    name: 'Nano Banana 2 (Gemini 3.1 Flash)',
+    description: 'Gemini 3.1 Flash Image — 4K output, stronger reasoning, better character consistency. Endpoint: /generate',
+    department: ['production_design', 'direction'],
+    capabilities: ['text-to-image', 'image-editing', 'image-to-image', '4k'],
+    averageTime: 15,
+  },
+  'nano-banana-pro': {
+    id: 'nano-banana-pro',
+    name: 'Nano Banana Pro (Gemini 3 Pro)',
+    description: 'Gemini 3 Pro Image — maximum fidelity, advanced control, deep reasoning. Endpoint: /api/v1/jobs/createTask',
+    department: ['production_design', 'direction'],
+    capabilities: ['text-to-image', 'image-editing', 'image-to-image', '4k', 'advanced-control'],
+    averageTime: 25,
   },
 
   // === MUSIC GENERATION ===
@@ -172,7 +190,7 @@ export const KIE_DEPARTMENT_MODELS: Record<FilmDepartment, string[]> = {
   cinematography: ['veo-3.1', 'veo-3.1-fast', 'runway-aleph'],
   audio: ['suno-v3.5', 'suno-v4', 'suno-v4.5', 'suno-v4.5-plus'],
   editing: ['runway-aleph'],
-  production_design: ['4o-image', 'flux-kontext', 'nano-banana'],
+  production_design: ['4o-image', 'flux-kontext', 'nano-banana', 'nano-banana-2', 'nano-banana-pro'],
   production: ['gpt-4o', 'gemini-pro'],
 };
 
@@ -256,7 +274,9 @@ export class KieAiTool implements MovieTool {
   // -------------------------------------------------------------------------
 
   /**
-   * Generate video from text or image using Veo or Runway
+   * Generate video from text or image using Veo or Runway.
+   * Prompts are automatically converted from natural language to structured
+   * JSON format for better model consistency and quality.
    */
   async generateVideo(options: {
     prompt: string;
@@ -266,12 +286,18 @@ export class KieAiTool implements MovieTool {
     model?: 'veo-3.1' | 'veo-3.1-fast' | 'runway-aleph';
     withAudio?: boolean;
     fps?: number;
+    useStructuredPrompt?: boolean; // default: true
   }): Promise<ToolResult> {
     const modelKey = options.model || 'veo-3.1';
     const modelConfig = KIE_AI_MODELS[modelKey];
-    
+
+    const useStructured = options.useStructuredPrompt !== false;
+    const finalPrompt = useStructured
+      ? promptConverter.optimize(options.prompt, modelKey as SupportedModel)
+      : options.prompt;
+
     const input: Record<string, any> = {
-      prompt: options.prompt,
+      prompt: finalPrompt,
     };
 
     // Model-specific input mapping
@@ -318,26 +344,48 @@ export class KieAiTool implements MovieTool {
   }
 
   /**
-   * Generate image from text using 4o, Flux, or Nano Banana
+   * Generate image from text using 4o, Flux, or Nano Banana.
+   * Prompts are automatically converted from natural language to structured
+   * JSON format for better model consistency and quality.
    */
   async generateImage(options: {
     prompt: string;
     negativePrompt?: string;
     width?: number;
     height?: number;
-    model?: '4o-image' | 'flux-kontext' | 'nano-banana';
+    model?: '4o-image' | 'flux-kontext' | 'nano-banana' | 'nano-banana-2' | 'nano-banana-pro';
     numOutputs?: number;
     style?: string;
+    // Nano Banana specific
+    aspectRatio?: '1:1' | '9:16' | '16:9' | '3:4' | '4:3' | '4:1' | '1:4';
+    resolution?: '1K' | '2K' | '4K';
+    imageInputs?: string[]; // image URLs for image-to-image (up to 10)
+    useStructuredPrompt?: boolean; // default: true
   }): Promise<ToolResult> {
     const modelKey = options.model || '4o-image';
     const modelConfig = KIE_AI_MODELS[modelKey];
 
+    // Nano Banana Pro uses a different endpoint and input schema
+    if (modelKey === 'nano-banana-pro') {
+      return this.generateImageNanoBananaPro(options);
+    }
+
+    const useStructured = options.useStructuredPrompt !== false;
+    const conversion = useStructured
+      ? promptConverter.convert(options.prompt, modelKey as SupportedModel)
+      : null;
+
+    const finalPrompt = conversion ? conversion.optimizedPrompt : options.prompt;
+    // Use converter's negative prompt unless the caller provided their own
+    const finalNegativePrompt = options.negativePrompt
+      || (conversion ? (conversion.structuredData as any).negative_prompt : undefined);
+
     const input: Record<string, any> = {
-      prompt: options.prompt,
+      prompt: finalPrompt,
     };
 
-    if (options.negativePrompt) {
-      input.negativePrompt = options.negativePrompt;
+    if (finalNegativePrompt) {
+      input.negativePrompt = finalNegativePrompt;
     }
     if (options.width) {
       input.width = options.width;
@@ -378,7 +426,68 @@ export class KieAiTool implements MovieTool {
   }
 
   /**
-   * Generate music using Suno API
+   * Nano Banana Pro — uses /api/v1/jobs/createTask (different from /generate).
+   * Gemini 3 Pro Image: max fidelity, up to 4K, supports up to 10 image inputs.
+   */
+  private async generateImageNanoBananaPro(options: Parameters<typeof this.generateImage>[0]): Promise<ToolResult> {
+    const modelConfig = KIE_AI_MODELS['nano-banana-pro'];
+
+    const useStructured = options.useStructuredPrompt !== false;
+    const finalPrompt = useStructured
+      ? promptConverter.optimize(options.prompt, 'nano-banana-pro' as SupportedModel)
+      : options.prompt;
+
+    const body = {
+      model: 'nano-banana-pro',
+      callBackUrl: this.config.webhookUrl,
+      input: {
+        prompt: finalPrompt,
+        image_input: options.imageInputs || [],
+        aspect_ratio: options.aspectRatio || '1:1',
+        resolution: options.resolution || '1K',
+        output_format: 'png',
+      },
+    };
+
+    try {
+      const response = await fetch(`${this.baseUrl}/api/v1/jobs/createTask`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.config.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(`Nano Banana Pro error: ${response.status} - ${(error as any).message || response.statusText}`);
+      }
+
+      const generation = await response.json();
+      const result = await this.waitForGeneration(generation.id);
+
+      return {
+        success: result.status === 'completed',
+        output: result.output,
+        metadata: {
+          model: modelConfig.name,
+          generationId: result.id,
+          creditsUsed: result.creditsUsed,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Nano Banana Pro generation failed',
+      };
+    }
+  }
+
+  /**
+   * Generate music using Suno API.
+   * Prompts are automatically converted from natural language to structured
+   * JSON format for better model consistency and quality.
    */
   async generateMusic(options: {
     prompt: string;
@@ -388,12 +497,18 @@ export class KieAiTool implements MovieTool {
     title?: string;
     makeInstrumental?: boolean;
     customLyrics?: string;
+    useStructuredPrompt?: boolean; // default: true
   }): Promise<ToolResult> {
     const modelKey = options.model || 'suno-v4';
     const modelConfig = KIE_AI_MODELS[modelKey];
 
+    const useStructured = options.useStructuredPrompt !== false;
+    const finalPrompt = useStructured
+      ? promptConverter.optimize(options.prompt, modelKey as SupportedModel)
+      : options.prompt;
+
     const input: Record<string, any> = {
-      prompt: options.prompt,
+      prompt: finalPrompt,
     };
 
     if (options.duration) {
@@ -542,19 +657,19 @@ export class KieAiTool implements MovieTool {
   // -------------------------------------------------------------------------
 
   async execute(params: Record<string, any>): Promise<ToolResult> {
-    const action = params.action as string;
-    
-    switch (action) {
+    const { action, ...rest } = params;
+
+    switch (action as string) {
       case 'generateVideo':
-        return this.generateVideo(params);
+        return this.generateVideo(rest as Parameters<typeof this.generateVideo>[0]);
       case 'generateImage':
-        return this.generateImage(params);
+        return this.generateImage(rest as Parameters<typeof this.generateImage>[0]);
       case 'generateMusic':
-        return this.generateMusic(params);
+        return this.generateMusic(rest as Parameters<typeof this.generateMusic>[0]);
       case 'generateText':
-        return this.generateText(params);
+        return this.generateText(rest as Parameters<typeof this.generateText>[0]);
       case 'editVideo':
-        return this.editVideo(params);
+        return this.editVideo(rest as Parameters<typeof this.editVideo>[0]);
       default:
         return {
           success: false,
